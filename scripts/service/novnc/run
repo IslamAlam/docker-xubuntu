@@ -1,0 +1,4 @@
+#!/bin/sh
+
+exec 2>&1
+exec python3 -m websockify --web=/usr/share/novnc/ 6901 localhost:5901

@@ -5,7 +5,7 @@ m4_changequote([[, ]])
 ##################################################
 
 m4_ifdef([[CROSS_ARCH]], [[FROM docker.io/CROSS_ARCH/ubuntu:20.04]], [[FROM docker.io/ubuntu:20.04]]) AS build
-m4_ifdef([[CROSS_QEMU]], [[COPY --from=docker.io/hectormolinero/qemu-user-static:latest CROSS_QEMU CROSS_QEMU]])
+m4_ifdef([[CROSS_QEMU]], [[COPY --from=docker.io/multiarch/qemu-user-static:latest CROSS_QEMU CROSS_QEMU]])
 
 # Install system packages
 RUN export DEBIAN_FRONTEND=noninteractive \
@@ -213,7 +213,7 @@ RUN checkinstall --default --pkgname=xrdp-pulseaudio --pkgversion=9:999 --pkgrel
 ##################################################
 
 m4_ifdef([[CROSS_ARCH]], [[FROM docker.io/CROSS_ARCH/ubuntu:20.04]], [[FROM docker.io/ubuntu:20.04]]) AS xubuntu
-m4_ifdef([[CROSS_QEMU]], [[COPY --from=docker.io/hectormolinero/qemu-user-static:latest CROSS_QEMU CROSS_QEMU]])
+m4_ifdef([[CROSS_QEMU]], [[COPY --from=docker.io/multiarch/qemu-user-static:latest CROSS_QEMU CROSS_QEMU]])
 
 # Install system packages
 RUN export DEBIAN_FRONTEND=noninteractive \
@@ -471,5 +471,56 @@ COPY --chown=root:root ./config/pulse/ /etc/pulse/
 EXPOSE 3322/tcp
 # Expose RDP port
 EXPOSE 3389/tcp
+
+# m4_ifdef([[CROSS_ARCH]], [[FROM docker.io/CROSS_ARCH/ubuntu:20.04]], [[FROM xubuntu]]) AS xubuntu-vnc
+# m4_ifdef([[CROSS_QEMU]], [[COPY --from=docker.io/multiarch/qemu-user-static:latest CROSS_QEMU CROSS_QEMU]])
+FROM xubuntu AS xubuntu-vnc
+
+# FROM xubuntu AS xubuntu-vnc
+ENV DISPLAY=":1"
+ENV VNC_RESOLUTION=0
+ENV	VNC_PW=vncpassword
+ENV	VNC_RESOLUTION=1600x900
+ENV VNC_COL_DEPTH=24
+
+RUN \
+	apt-get update \
+	&& apt-get install -y \
+		tigervnc-standalone-server \
+	&& rm -rf /var/lib/apt/lists/*
+
+RUN chmod +x /usr/local/bin/start-vnc-server.sh
+
+RUN ln -sv /etc/sv/vnc /etc/service/
+
+# Expose SSH port
+EXPOSE 5901/tcp
+
+# m4_ifdef([[CROSS_ARCH]], [[FROM docker.io/CROSS_ARCH/ubuntu:20.04]], [[FROM xubuntu-vnc]]) AS xubuntu-novnc
+# m4_ifdef([[CROSS_QEMU]], [[COPY --from=docker.io/multiarch/qemu-user-static:latest CROSS_QEMU CROSS_QEMU]])
+FROM xubuntu-vnc AS xubuntu-novnc
+
+RUN \
+	apt-get update \
+	&& apt-get install -y \
+		python3-numpy \
+	&& cd /usr/share/ \
+	    # apt install -y tigervnc-standalone-server && \
+    # Install websockify
+    && mkdir -p ./novnc/utils/websockify \
+    # Before updating the noVNC version, we need to make sure that our monkey patching scripts still work!!
+    && get -qO- https://github.com/novnc/noVNC/archive/v1.1.0.tar.gz | tar xz --strip 1 -C ./novnc \
+    # use older version of websockify to prevent hanging connections on offline containers?, see https://github.com/ConSol/docker-headless-vnc-container/issues/50
+    && wget -qO- https://github.com/novnc/websockify/archive/v0.9.0.tar.gz | tar xz --strip 1 -C ./novnc/utils/websockify \
+    && chmod +x -v ./novnc/utils/*.sh \
+    # create user vnc directory
+    && mkdir -p $HOME/.vnc \
+	&& rm -rf /var/lib/apt/lists/*
+COPY --chown=root:root ./config/novnc/ /usr/share/novnc/
+
+RUN ln -sv /etc/sv/novnc /etc/service/
+
+EXPOSE 6901/tcp
+
 
 ENTRYPOINT ["/usr/local/bin/container-init"]

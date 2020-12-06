@@ -12,7 +12,7 @@ VERSION_FILE = ./VERSION
 DOCKERFILE_TEMPLATE := ./Dockerfile.m4
 
 IMAGE_REGISTRY := docker.io
-IMAGE_NAMESPACE := hectormolinero
+IMAGE_NAMESPACE := imansour
 IMAGE_PROJECT := xubuntu
 IMAGE_NAME := $(IMAGE_REGISTRY)/$(IMAGE_NAMESPACE)/$(IMAGE_PROJECT)
 
@@ -227,11 +227,11 @@ push-cross-manifest:
 
 .PHONY: binfmt-register
 binfmt-register:
-	'$(DOCKER)' run --rm --privileged docker.io/hectormolinero/qemu-user-static:latest
+	'$(DOCKER)' run --rm --privileged docker.io/multiarch/qemu-user-static:latest
 
 .PHONY: binfmt-reset
 binfmt-reset:
-	'$(DOCKER)' run --rm --privileged docker.io/hectormolinero/qemu-user-static:latest --reset
+	'$(DOCKER)' run --rm --privileged docker.io/multiarch/qemu-user-static:latest --reset
 
 ##################################################
 ## "version" target
@@ -258,3 +258,18 @@ clean:
 	rm -f '$(IMAGE_NATIVE_DOCKERFILE)' '$(IMAGE_AMD64_DOCKERFILE)' '$(IMAGE_ARM64V8_DOCKERFILE)' '$(IMAGE_ARM32V7_DOCKERFILE)'
 	rm -f '$(IMAGE_NATIVE_TARBALL)' '$(IMAGE_AMD64_TARBALL)' '$(IMAGE_ARM64V8_TARBALL)' '$(IMAGE_ARM32V7_TARBALL)'
 	if [ -d '$(DISTDIR)' ] && [ -z "$$(ls -A '$(DISTDIR)')" ]; then rmdir '$(DISTDIR)'; fi
+
+
+.PHONY: buildx-native-image
+buildx-native-image: $(IMAGE_NATIVE_DOCKERFILE)
+
+$(IMAGE_NATIVE_DOCKERFILE): $(DOCKERFILE_TEMPLATE)
+	mkdir -p '$(DISTDIR)'
+	'$(M4)' \
+		--prefix-builtins \
+		'$(DOCKERFILE_TEMPLATE)' | cat --squeeze-blank > '$@'
+	'$(DOCKER)' buildx build --compress --no-cache --rm --force-rm --push $(IMAGE_BUILD_OPTS) \
+		--platform linux/amd64,linux/arm64/v8,linux/arm/v7 \
+		--tag '$(IMAGE_NAME):$(IMAGE_VERSION)' \
+		--tag '$(IMAGE_NAME):latest' \
+		--file '$@' ./

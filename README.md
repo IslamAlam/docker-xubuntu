@@ -15,7 +15,7 @@ docker run \
   --publish 3322:3322/tcp \
   --publish 3389:3389/tcp \
   --device /dev/dri:/dev/dri \
-  hectormolinero/xubuntu:latest
+  imansour/xubuntu:latest
 ```
 
 > You will be able to connect to the container via SSH through 3322/tcp port and RDP through 3389/tcp port.
