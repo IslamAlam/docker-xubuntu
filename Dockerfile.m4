@@ -452,20 +452,20 @@ RUN ln -sf /dev/stdout /var/log/xrdp.log
 RUN ln -sf /dev/stdout /var/log/xrdp-sesman.log
 
 # Copy and enable services
-COPY --chown=root:root ./scripts/service/ /etc/sv/
+ADD --chown=root:root ./scripts/service/ /etc/sv/
 RUN ln -sv /etc/sv/sshd /etc/service/
 RUN ln -sv /etc/sv/dbus-daemon /etc/service/
 RUN ln -sv /etc/sv/xrdp /etc/service/
 RUN ln -sv /etc/sv/xrdp-sesman /etc/service/
 
 # Copy scripts
-COPY --chown=root:root ./scripts/bin/ /usr/local/bin/
+ADD --chown=root:root ./scripts/bin/ /usr/local/bin/
 
 # Copy config
-COPY --chown=root:root ./config/ssh/ /etc/ssh/
-COPY --chown=root:root ./config/xrdp/ /etc/xrdp/
-COPY --chown=root:root ./config/skel/ /etc/skel/
-COPY --chown=root:root ./config/pulse/ /etc/pulse/
+ADD --chown=root:root ./config/ssh/ /etc/ssh/
+ADD --chown=root:root ./config/xrdp/ /etc/xrdp/
+ADD --chown=root:root ./config/skel/ /etc/skel/
+ADD --chown=root:root ./config/pulse/ /etc/pulse/
 
 # Expose SSH port
 EXPOSE 3322/tcp
@@ -503,20 +503,28 @@ FROM xubuntu-vnc AS xubuntu-novnc
 RUN \
 	apt-get update \
 	&& apt-get install -y \
-		python3-numpy \
-	&& cd /usr/share/ \
-	    # apt install -y tigervnc-standalone-server && \
-    # Install websockify
-    && mkdir -p ./novnc/utils/websockify \
-    # Before updating the noVNC version, we need to make sure that our monkey patching scripts still work!!
-    && get -qO- https://github.com/novnc/noVNC/archive/v1.1.0.tar.gz | tar xz --strip 1 -C ./novnc \
-    # use older version of websockify to prevent hanging connections on offline containers?, see https://github.com/ConSol/docker-headless-vnc-container/issues/50
-    && wget -qO- https://github.com/novnc/websockify/archive/v0.9.0.tar.gz | tar xz --strip 1 -C ./novnc/utils/websockify \
-    && chmod +x -v ./novnc/utils/*.sh \
-    # create user vnc directory
-    && mkdir -p $HOME/.vnc \
+		python3-numpy python3-setuptools \
 	&& rm -rf /var/lib/apt/lists/*
-COPY --chown=root:root ./config/novnc/ /usr/share/novnc/
+
+RUN \
+	cd /usr/share/ && \
+    # Install websockify
+    mkdir -p ./novnc/utils/websockify && \
+    # Before updating the noVNC version, we need to make sure that our monkey patching scripts still work!!
+    wget -qO- https://github.com/novnc/noVNC/archive/v1.1.0.tar.gz | tar xz --strip 1 -C ./novnc && \
+    ## create index.html to forward automatically to `vnc.html`
+    # Needs to be run after patching
+    ln -s /usr/share/novnc/vnc.html /usr/share/novnc/index.html && \
+    # use older version of websockify to prevent hanging connections on offline containers?, see https://github.com/ConSol/docker-headless-vnc-container/issues/50
+    wget -qO- https://github.com/novnc/websockify/archive/v0.9.0.tar.gz | tar xz --strip 1 -C ./novnc/utils/websockify && \
+	cd ./novnc/utils/websockify && \
+	python3 setup.py install && \
+	# Set sh for exec
+    chmod +x -v /usr/share/novnc/utils/*.sh && \
+    # create user vnc directory
+    mkdir -p $HOME/.vnc
+
+ADD --chown=root:root ./config/novnc/ /usr/share/novnc/
 
 RUN ln -sv /etc/sv/novnc /etc/service/
 

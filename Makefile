@@ -259,6 +259,19 @@ clean:
 	rm -f '$(IMAGE_NATIVE_TARBALL)' '$(IMAGE_AMD64_TARBALL)' '$(IMAGE_ARM64V8_TARBALL)' '$(IMAGE_ARM32V7_TARBALL)'
 	if [ -d '$(DISTDIR)' ] && [ -z "$$(ls -A '$(DISTDIR)')" ]; then rmdir '$(DISTDIR)'; fi
 
+.PHONY: buildx-amd64-image
+buildx-amd64-image: $(IMAGE_AMD64_DOCKERFILE)
+
+$(IMAGE_AMD64_DOCKERFILE): $(DOCKERFILE_TEMPLATE)
+	mkdir -p '$(DISTDIR)'
+	'$(M4)' \
+		--prefix-builtins \
+		'$(DOCKERFILE_TEMPLATE)' | cat --squeeze-blank > '$@'
+	'$(DOCKER)' buildx build --compress --no-cache --rm --force-rm --push $(IMAGE_BUILD_OPTS) \
+		--platform linux/amd64 \
+		--tag '$(IMAGE_NAME):$(IMAGE_VERSION)' \
+		--tag '$(IMAGE_NAME):latest' \
+		--file '$@' ./
 
 .PHONY: buildx-native-image
 buildx-native-image: $(IMAGE_NATIVE_DOCKERFILE)
